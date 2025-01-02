@@ -1,0 +1,22 @@
+{
+  "name": "otel",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.55.0",
+    "@opentelemetry/exporter-otlp-http": "^0.26.0",
+    "@opentelemetry/sdk-node": "^0.57.0",
+    "express": "^4.21.2"
+  },
+  "scripts": {
+    "load-test": "autocannon -c 10 -d 30 -p 10 http://localhost:3001/"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "autocannon": "^8.0.0"
+  }
+}
