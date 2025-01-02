@@ -1,0 +1,91 @@
+x-default-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "5m"
+    max-file: "2"
+    tag: "{{.Name}}"
+
+networks:
+  default:
+    name: observability-example-network
+    driver: bridge
+
+services:
+
+  # ******************
+  # Telemetry Services
+  # ******************
+  otel-collector:
+    image: ${COLLECTOR_CONTRIB_IMAGE}
+    container_name: otel-collector
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+    restart: unless-stopped
+    command: [ "--config=/etc/otelcol-config.yml" ]
+    user: 0:0
+    volumes:
+      - ${HOST_FILESYSTEM}:/hostfs:ro
+      - ${DOCKER_SOCK}:/var/run/docker.sock:ro
+      - ${OTEL_COLLECTOR_CONFIG}:/etc/otelcol-config.yml      
+    ports:
+      - "${OTEL_COLLECTOR_PORT_GRPC}"
+      - "${OTEL_COLLECTOR_PORT_HTTP}"
+    depends_on:
+      jaeger:
+        condition: service_started      
+    logging: *logging
+    environment:
+      - ENVOY_PORT
+      - HOST_FILESYSTEM
+      - OTEL_COLLECTOR_HOST
+      - OTEL_COLLECTOR_PORT_GRPC
+      - OTEL_COLLECTOR_PORT_HTTP
+      - COLLECTOR_OTLP_ENABLED=true
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - --web.enable-otlp-receiver
+
+    ports:
+      - "${PROMETHEUS_SERVICE_PORT}:${PROMETHEUS_SERVICE_PORT}"
+    volumes:
+      - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml    
+    logging: *logging
+
+  grafana:
+    image: grafana/grafana    
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_SERVICE_PASSWORD}
+    volumes:
+      - ./configs/grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ./configs/grafana/provisioning/:/etc/grafana/provisioning/
+    ports:
+      - "${GRAFANA_SERVICE_PORT}:${GRAFANA_SERVICE_PORT}"
+    logging: *logging  
+
+  jaeger:
+    image: jaegertracing/all-in-one
+    container_name: jaeger
+    command:
+      - "--memory.max-traces=25000"
+      - "--query.base-path=/jaeger/ui"
+      - "--prometheus.server-url=http://${PROMETHEUS_ADDR}"
+      - "--prometheus.query.normalize-calls=true"
+      - "--prometheus.query.normalize-duration=true"
+    deploy:
+      resources:
+        limits:
+          memory: 1200M
+    restart: unless-stopped
+    ports:
+      - "${JAEGER_SERVICE_PORT}:${JAEGER_SERVICE_PORT}"
+      - "${OTEL_COLLECTOR_PORT_GRPC}"
+    environment:
+      - METRICS_STORAGE_TYPE=prometheus
+    logging: *logging
+    
